@@ -44,7 +44,7 @@ final class OpenSubSubtitle: OnlineSubtitle {
       }
       let subFilename = "[\(self.index)]\(self.filename)"
       if let url = unzipped.saveToFolder(Utility.tempDirURL, filename: subFilename) {
-        callback(.ok(url))
+        callback(.ok([url]))
       }
     }
   }
@@ -57,6 +57,7 @@ class OpenSubSupport {
   typealias Subtitle = OpenSubSubtitle
 
   enum OpenSubError: Error {
+    case noResult
     // login failed (reason)
     case loginFailed(String)
     // file error
@@ -92,6 +93,8 @@ class OpenSubSupport {
   private static let serviceName: NSString = "IINA OpenSubtitles Account"
   private let xmlRpc: JustXMLRPC
 
+  private let subChooseViewController = SubChooseViewController(source: .openSub)
+
   var language: String
   var username: String = ""
 
@@ -109,6 +112,23 @@ class OpenSubSupport {
   init(language: String? = nil) {
     self.language = language ?? ""
     self.xmlRpc = JustXMLRPC(apiPath)
+  }
+
+  private func findPath(_ path: [String], in data: Any) throws -> Any? {
+    var current: Any? = data
+    for arg in path {
+      guard let next = current as? [String: Any] else { throw OpenSubError.wrongResponseFormat }
+      current = next[arg]
+    }
+    return current
+  }
+
+  private func checkStatus(_ data: Any) -> Bool {
+    if let parsed = try? findPath(["status"], in: data) {
+      return (parsed as? String ?? "").hasPrefix("200")
+    } else {
+      return false
+    }
   }
 
   func login(testUser username: String? = nil, password: String? = nil) -> Promise<Void> {
@@ -196,32 +216,51 @@ class OpenSubSupport {
     }
   }
 
-  func request(_ info: FileInfo) -> Promise<[OpenSubSubtitle]> {
+  func requestByName(_ fileURL: URL) -> Promise<[OpenSubSubtitle]> {
+    return requestIMDB(fileURL).then { IMDB in
+      let info = ["imdbid": IMDB]
+      return self.request(info)
+    }
+  }
+
+  func requestIMDB(_ fileURL: URL) -> Promise<String> {
+    return Promise { fulfill, reject in
+      let filename = fileURL.lastPathComponent
+      xmlRpc.call("GuessMovieFromString", [token, [filename]]) { status in
+        switch status {
+        case .ok(let response):
+          do {
+            guard self.checkStatus(response) else { throw OpenSubError.wrongResponseFormat }
+            let IMDB = try self.findPath(["data", filename, "BestGuess", "IDMovieIMDB"], in: response)
+            fulfill(IMDB as? String ?? "")
+          } catch let (error) {
+            reject(error)
+            return
+          }
+        case .failure(_):
+          reject(OpenSubError.searchFailed("Failure"))
+        case .error(let error):
+          reject(OpenSubError.xmlRpcError(error))
+        }
+      }
+    }
+  }
+
+  func request(_ info: [String: String]) -> Promise<[OpenSubSubtitle]> {
     return Promise { fulfill, reject in
       let limit = 100
-      var requestInfo = info.dictionary
+      var requestInfo = info
       requestInfo["sublanguageid"] = self.language
       xmlRpc.call("SearchSubtitles", [token, [requestInfo], ["limit": limit]]) { status in
         switch status {
         case .ok(let response):
-          // OK
-          guard let parsed = (response as? [String: Any]) else {
-            reject(OpenSubError.wrongResponseFormat)
-            return
-          }
-          // check status
-          let pStatus = parsed["status"] as! String
-          guard pStatus.hasPrefix("200") else {
-            reject(OpenSubError.searchFailed(pStatus))
-            return
-          }
-          // get data
-          guard let pData = (parsed["data"] as? ResponseFilesData) else {
+          guard self.checkStatus(response) else { reject(OpenSubError.wrongResponseFormat); return }
+          guard let pData = try? self.findPath(["data"], in: response) as? ResponseFilesData else {
             reject(OpenSubError.wrongResponseFormat)
             return
           }
           var result: [OpenSubSubtitle] = []
-          for (index, subData) in pData.enumerated() {
+          for (index, subData) in pData!.enumerated() {
             let sub = OpenSubSubtitle(index: index,
                                       filename: subData["SubFileName"] as! String,
                                       langID: subData["SubLanguageID"] as! String,
@@ -234,7 +273,11 @@ class OpenSubSupport {
                                       zipDlLink: subData["ZipDownloadLink"] as! String)
             result.append(sub)
           }
-          fulfill(result)
+          if result.isEmpty {
+            reject(OpenSubError.noResult)
+          } else {
+            fulfill(result)
+          }
         case .failure(_):
           // Failure
           reject(OpenSubError.searchFailed("Failure"))
@@ -246,25 +289,23 @@ class OpenSubSupport {
     }
   }
 
-  func showSubSelectWindow(subs: [OpenSubSubtitle]) -> Promise<[OpenSubSubtitle]> {
+  func showSubSelectWindow(with subs: [OpenSubSubtitle]) -> Promise<[OpenSubSubtitle]> {
     return Promise { fulfill, reject in
       // return when found 0 or 1 sub
       if subs.count <= 1 {
         fulfill(subs)
         return
       }
-      let subSelectWindow = (NSApp.delegate as! AppDelegate).subSelectWindow
-      subSelectWindow.whenUserAction = { subs in
-        fulfill(subs)
+      subChooseViewController.subtitles = subs
+
+      subChooseViewController.userDoneAction = { subs in
+        fulfill(subs as! [OpenSubSubtitle])
       }
-      subSelectWindow.whenUserClosed = {
+      subChooseViewController.userCanceledAction = {
         reject(OpenSubError.userCanceled)
       }
-      DispatchQueue.main.async {
-        subSelectWindow.showWindow(self)
-        subSelectWindow.arrayController.content = nil
-        subSelectWindow.arrayController.add(contentsOf: subs)
-      }
+      PlayerCore.active.sendOSD(.foundSub(subs.count), autoHide: false, accessoryView: subChooseViewController.view)
+      subChooseViewController.tableView.reloadData()
     }
   }
 

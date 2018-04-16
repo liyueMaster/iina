@@ -91,6 +91,16 @@ extension MainMenuActionHandler {
     }
   }
 
+  @objc func menuChangeSpeed(_ sender: NSMenuItem) {
+    if sender.tag == 5 {
+      player.setSpeed(1)
+      return
+    }
+    if let multiplier = sender.representedObject as? Double {
+      player.setSpeed(player.info.playSpeed * multiplier)
+    }
+  }
+
   @objc func menuJumpToBegin(_ sender: NSMenuItem) {
     player.seek(absoluteSecond: 0)
   }
@@ -104,7 +114,7 @@ extension MainMenuActionHandler {
   }
 
   @objc func menuSnapshot(_ sender: NSMenuItem) {
-    player.screenShot()
+    player.screenshot()
   }
 
   @objc func menuABLoop(_ sender: NSMenuItem) {
@@ -139,6 +149,21 @@ extension MainMenuActionHandler {
     }
   }
 
+  @objc func menuNextMedia(_ sender: NSMenuItem) {
+    player.navigateInPlaylist(nextMedia: true)
+  }
+
+  @objc func menuPreviousMedia(_ sender: NSMenuItem) {
+    player.navigateInPlaylist(nextMedia: false)
+  }
+
+  @objc func menuNextChapter(_ sender: NSMenuItem) {
+    player.mpv.command(.add, args: ["chapter", "1"])
+  }
+
+  @objc func menuPreviousChapter(_ sender: NSMenuItem) {
+    player.mpv.command(.add, args: ["chapter", "-1"])
+  }
 }
 
 // MARK: - Video
@@ -194,14 +219,14 @@ extension MainMenuActionHandler {
   @objc func menuChangeVolume(_ sender: NSMenuItem) {
     if let volumeDelta = sender.representedObject as? Int {
       let newVolume = Double(volumeDelta) + player.info.volume
-      player.setVolume(newVolume, constrain: false)
+      player.setVolume(newVolume)
     } else {
       Utility.log("sender.representedObject is not int in menuChangeVolume()")
     }
   }
 
   @objc func menuToggleMute(_ sender: NSMenuItem) {
-    player.toogleMute(nil)
+    player.toogleMute()
   }
 
   @objc func menuChangeAudioDelay(_ sender: NSMenuItem) {
@@ -223,7 +248,7 @@ extension MainMenuActionHandler {
 extension MainMenuActionHandler {
   @objc func menuLoadExternalSub(_ sender: NSMenuItem) {
     Utility.quickOpenPanel(title: "Load external subtitle file", isDir: false) { url in
-      self.player.loadExternalSubFile(url)
+      self.player.loadExternalSubFile(url, delay: true)
     }
   }
 
@@ -270,22 +295,30 @@ extension MainMenuActionHandler {
   }
 
   @objc func menuFindOnlineSub(_ sender: NSMenuItem) {
-    guard let url = player.info.currentURL else { return }
-    OnlineSubtitle.getSub(forFile: url, playerCore: player) { subtitles in
+    // return if last search is undone
+    guard let url = player.info.currentURL, !player.isSearchingOnlineSubtitle else { return }
+
+    player.isSearchingOnlineSubtitle = true
+    OnlineSubtitle.getSubtitle(forFile: url, playerCore: player) { subtitles in
       // send osd in main thread
       self.player.sendOSD(.foundSub(subtitles.count))
       // download them
       for sub in subtitles {
         sub.download { result in
           switch result {
-          case .ok(let url):
-            Utility.log("Saved subtitle to \(url.path)")
-            self.player.loadExternalSubFile(url)
-            self.player.sendOSD(.downloadedSub(url.lastPathComponent))
+          case .ok(let urls):
+            for url in urls {
+              Utility.log("Saved subtitle to \(url.path)")
+              self.player.loadExternalSubFile(url)
+            }
+            self.player.sendOSD(.downloadedSub(
+              urls.map({ $0.lastPathComponent }).joined(separator: "\n")
+            ))
             self.player.info.haveDownloadedSub = true
           case .failed:
             self.player.sendOSD(.networkError)
           }
+          self.player.isSearchingOnlineSubtitle = false
         }
       }
     }
@@ -314,6 +347,15 @@ extension MainMenuActionHandler {
     } catch let error as NSError {
       Utility.showAlert("error_saving_file", arguments: ["subtitle",
                                                          error.localizedDescription])
+    }
+  }
+
+  @objc func menuCycleTrack(_ sender: NSMenuItem) {
+    switch sender.tag {
+    case 0: player.mpv.command(.cycle, args: ["video"])
+    case 1: player.mpv.command(.cycle, args: ["audio"])
+    case 2: player.mpv.command(.cycle, args: ["sub"])
+    default: break
     }
   }
 }

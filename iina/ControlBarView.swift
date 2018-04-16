@@ -10,58 +10,78 @@ import Cocoa
 
 class ControlBarView: NSVisualEffectView {
 
+  @IBOutlet weak var xConstraint: NSLayoutConstraint!
+  @IBOutlet weak var yConstraint: NSLayoutConstraint!
+
   var mousePosRelatedToView: CGPoint?
 
   var isDragging: Bool = false
 
+  private var isAlignFeedbackSent = false
+
   override func awakeFromNib() {
     self.layer?.cornerRadius = 6
-    self.translatesAutoresizingMaskIntoConstraints = true
+    self.translatesAutoresizingMaskIntoConstraints = false
   }
 
   override func mouseDown(with event: NSEvent) {
     mousePosRelatedToView = NSEvent.mouseLocation
-    mousePosRelatedToView!.x -= self.frame.origin.x
-    mousePosRelatedToView!.y -= self.frame.origin.y
+    mousePosRelatedToView!.x -= frame.origin.x
+    mousePosRelatedToView!.y -= frame.origin.y
+    isAlignFeedbackSent = abs(frame.origin.x - (window!.frame.width - frame.width) / 2) <= 5
     isDragging = true
   }
 
   override func mouseDragged(with event: NSEvent) {
-    if mousePosRelatedToView != nil {
-      let currentLocation = NSEvent.mouseLocation
-      var newOrigin = CGPoint(
-        x: currentLocation.x - mousePosRelatedToView!.x,
-        y: currentLocation.y - mousePosRelatedToView!.y
-      )
-      // stick to center
-      let windowFrame = window!.frame
-      if Preference.bool(for: .controlBarStickToCenter) {
-        let xPosWhenCenter = (windowFrame.width - frame.width) / 2
-        if  abs(newOrigin.x - xPosWhenCenter) <= 25 {
-          newOrigin.x = xPosWhenCenter
+    guard let mousePos = mousePosRelatedToView, let windowFrame = window?.frame else { return }
+    let currentLocation = NSEvent.mouseLocation
+    var newOrigin = CGPoint(
+      x: currentLocation.x - mousePos.x,
+      y: currentLocation.y - mousePos.y
+    )
+    // stick to center
+    if Preference.bool(for: .controlBarStickToCenter) {
+      let xPosWhenCenter = (windowFrame.width - frame.width) / 2
+      if abs(newOrigin.x - xPosWhenCenter) <= 5 {
+        newOrigin.x = xPosWhenCenter
+        if #available(macOS 10.11, *), !isAlignFeedbackSent {
+          NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .default)
+          isAlignFeedbackSent = true
         }
+      } else {
+        isAlignFeedbackSent = false
       }
-      // bound to parent
-      let xMax = windowFrame.width - frame.width
-      let yMax = windowFrame.height - frame.height
-      if newOrigin.x > xMax {
-        newOrigin.x = xMax
-      }
-      if newOrigin.y > yMax {
-        newOrigin.y = yMax
-      }
-      if newOrigin.x < 0 {
-        newOrigin.x = 0
-      }
-      if newOrigin.y < 0 {
-        newOrigin.y = 0
-      }
-      self.setFrameOrigin(newOrigin)
-      // save position
-      let xPos = (newOrigin.x + frame.width / 2) / windowFrame.width
-      let yPos = (newOrigin.y) / windowFrame.height
-      Preference.set(xPos, for: .controlBarPositionHorizontal)
-      Preference.set(yPos, for: .controlBarPositionVertical)
+    }
+    // bound to parent
+    var updateX = true, updateY = true
+    let xMax = windowFrame.width - frame.width - 10
+    let yMax = windowFrame.height - frame.height
+    if newOrigin.x > xMax {
+      newOrigin.x = xMax
+      updateX = false
+    }
+    if newOrigin.y > yMax {
+      newOrigin.y = yMax
+      updateY = false
+    }
+    if newOrigin.x < 10 {
+      newOrigin.x = 0
+      updateX = false
+    }
+    if newOrigin.y < 0 {
+      newOrigin.y = 0
+      updateY = false
+    }
+    // save position
+    if updateX {
+      let xPos = newOrigin.x + frame.width / 2
+      xConstraint.constant = xPos
+      Preference.set(xPos / windowFrame.width, for: .controlBarPositionHorizontal)
+    }
+    if updateY {
+      let yPos = newOrigin.y
+      yConstraint.constant = yPos
+      Preference.set(yPos / windowFrame.height, for: .controlBarPositionVertical)
     }
   }
   override func mouseUp(with event: NSEvent) {

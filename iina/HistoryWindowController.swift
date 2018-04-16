@@ -72,7 +72,7 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
   override func windowDidLoad() {
     super.windowDidLoad()
 
-    NotificationCenter.default.addObserver(forName: Constants.Noti.historyUpdated, object: nil, queue: .main) { [unowned self] _ in
+    NotificationCenter.default.addObserver(forName: .iinaHistoryUpdated, object: nil, queue: .main) { [unowned self] _ in
       self.reloadData()
     }
 
@@ -131,7 +131,7 @@ class HistoryWindowController: NSWindowController, NSOutlineViewDelegate, NSOutl
 
   @objc func doubleAction() {
     if let selected = outlineView.item(atRow: outlineView.clickedRow) as? PlaybackHistory {
-      PlayerCore.active.openURL(selected.url, shouldAutoLoad: true)
+      PlayerCore.activeOrNew.openURL(selected.url, shouldAutoLoad: true)
     }
   }
 

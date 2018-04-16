@@ -48,7 +48,7 @@ extension PlayerCore {
     }
 
     // refresh playlist
-    NotificationCenter.default.post(Notification(name: Constants.Noti.playlistChanged))
+    postNotification(.iinaPlaylistChanged)
     // send OSD
     if count > 1 {
       sendOSD(.addToPlaylist(count))
@@ -57,7 +57,7 @@ extension PlayerCore {
   }
 
   /**
-   Checks whether the path list contains playable file and performs early return if so.
+   Checks whether the path list contains playable file and performs early return if so. Don't use this method for a non-file URL.
    
    - Parameters:
      - paths: The list as an array of `String`.
@@ -87,7 +87,7 @@ extension PlayerCore {
   }
 
   /**
-   Returns playable files contained in a URL list.
+   Returns playable files contained in a URL list. Any non-file URL will be counted directly without further checking.
 
    - Parameters:
      - urls: The list as an array of `URL`.
@@ -96,6 +96,10 @@ extension PlayerCore {
   func getPlayableFiles(in urls: [URL]) -> [URL] {
     var playableFiles: [URL] = []
     for url in urls {
+      if !url.isFileURL {
+        playableFiles.append(url)
+        continue
+      }
       if url.representsDirectory {
         // is directory
         // `enumerator(at:includingPropertiesForKeys:)` doesn't work :(
@@ -113,7 +117,14 @@ extension PlayerCore {
         }
       }
     }
-    return playableFiles
+    return Array(Set(playableFiles)).sorted { url1, url2 in
+      let folder1 = url1.deletingLastPathComponent(), folder2 = url2.deletingLastPathComponent()
+      if folder1.absoluteString == folder2.absoluteString {
+        return url1.lastPathComponent.localizedStandardCompare(url2.lastPathComponent) == .orderedAscending
+      } else {
+        return folder1.absoluteString < folder2.absoluteString
+      }
+    }
   }
 
   /**
@@ -167,6 +178,11 @@ extension PlayerCore {
     if types.contains(.nsFilenames) {
       // filenames
       guard let paths = pb.propertyList(forType: .nsFilenames) as? [String] else { return [] }
+      // check 3d lut files
+      if paths.count == 1 && Utility.lut3dExt.contains(paths[0].lowercasedPathExtension) {
+        return .copy
+      }
+      // other files
       let theOnlyPathIsBDFolder = paths.count == 1 && isBDFolder(URL(fileURLWithPath: paths[0]))
       return theOnlyPathIsBDFolder ||
         hasPlayableFiles(in: paths) ||
@@ -179,7 +195,7 @@ extension PlayerCore {
       guard let droppedString = pb.string(forType: .string) else {
         return []
       }
-      return Regex.urlDetect.matches(droppedString) ? .copy : []
+      return Regex.url.matches(droppedString) || Regex.filePath.matches(droppedString) ? .copy : []
     }
     return []
   }
@@ -199,6 +215,18 @@ extension PlayerCore {
     if types.contains(.nsFilenames) {
       // filenames
       guard let paths = pb.propertyList(forType: .nsFilenames) as? [String] else { return false }
+      // check 3d lut files
+      if paths.count == 1 && Utility.lut3dExt.contains(paths[0].lowercasedPathExtension) {
+        let result = addVideoFilter(MPVFilter(lavfiName: "lut3d", label: "iina_quickl3d", paramDict: [
+          "file": paths[0],
+          "interp": "nearest"
+          ]))
+        if result {
+          sendOSD(.addFilter("3D LUT"))
+        }
+        return result
+      }
+      // other files
       let urls = paths.map{ URL(fileURLWithPath: $0) }
       // try open files
       guard let loadedFileCount = openURLs(urls) else { return true }
@@ -231,7 +259,7 @@ extension PlayerCore {
       guard let droppedString = pb.string(forType: .string) else {
         return false
       }
-      if Regex.urlDetect.matches(droppedString) {
+      if Regex.url.matches(droppedString) || Regex.filePath.matches(droppedString) {
         openURLString(droppedString)
         return true
       } else {

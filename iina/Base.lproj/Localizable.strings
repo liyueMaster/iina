@@ -68,6 +68,8 @@
 "osd.file_error" = "Error reading file";
 "osd.cannot_login" = "Cannot login";
 "osd.canceled" = "Canceled";
+"osd.filter_added" = "Added Filter: %@";
+"osd.filter_removed" = "Removed Filter";
 
 "preference.title" = "Preferences";
 "preference.general" = "General";
@@ -81,20 +83,36 @@
 "preference.scripts" = "Scripts";
 "preference.not_logged_in" = "Not logged in";
 "preference.logged_in_as" = "Logged in as %@";
+"preference.system_media_control" = "Use system media control";
 
 "menu.volume"= "Volume: %d";
 "menu.audio_delay" = "Audio Delay: %.2fs";
-"menu.sub_delay" = "Subtitie Delay: %.2fs";
+"menu.sub_delay" = "Subtitle Delay: %.2fs";
 "menu.fullscreen" = "Enter Full Screen";
 "menu.exit_fullscreen" = "Exit Full Screen";
 "menu.pip" = "Enter Picture-in-Picture";
 "menu.exit_pip" = "Exit Picture-in-Picture";
 "menu.pause" = "Pause";
 "menu.resume" = "Resume";
+"menu.speed" = "Speed: %.2fx";
+
+"menu.seek_forward" = "Step Forward %.0fs";
+"menu.seek_backward" = "Step Backward %.0fs";
+"menu.speed_up" = "Speed Up to %.1fx";
+"menu.speed_down" = "Speed Down to %.1fx";
+"menu.volume_up" = "Volume + %.0f%%";
+"menu.volume_down" = "Volume - %.0f%%";
+"menu.audio_delay_up" = "Audio Delay + %.1fs";
+"menu.audio_delay_down" = "Audio Delay - %.1fs";
+"menu.sub_delay_up" = "Subtitle Delay + %.1fs";
+"menu.sub_delay_down" = "Subtitle Delay - %.1fs";
 
 "track.none" = "<None>";
 
 // Alerts
+"alert.beta_channel.title" = "Receive Updates for Beta Versions";
+"alert.beta_channel.message" = "IINA v1.0 is comming! Would you like to help us to test out beta versions? \n\nYou can change this behavior at anytime in Preferences - General.";
+
 "alert.title_error" = "Error";
 "alert.title_warning" = "Warning";
 "alert.title_info" = "Information";
@@ -160,6 +178,9 @@
 "alert.open_url.message" = "Please enter the URL:";
 "alert.choose_media_file.title" = "Choose Media File";
 
+"alert.add_url.title" = "Add URL";
+"alert.add_url.message" = "Please enter the URL:";
+
 "alert.delete_history.title" = "Delete Playback History";
 "alert.delete_history.message" = "Are you sure to delete select entries?";
 
@@ -176,6 +197,15 @@
 
 "alert.no_video_track" = "There is no video track.";
 
+"alert.duplicate_config" = "You cannot edit default configurations directly. Please duplicate it before editing.";
+
+"alert.assrt_register" = "Due to limited API quota, you are strongly recommended to use your own API token. The default token is only for demo usage, and you may encounter network error.";
+"alert.assrt_register.register" = "Register Now";
+"alert.assrt_register.try" = "Try First";
+"alert.assrt_token_prompt.title" = "Enter your API token";
+"alert.assrt_token_prompt.message" = "Please register in the opened webpage. Get your token in your user home page and enter it below:";
+"alert.assrt_token_invalid" = "Your Assrt API token seems to be invalid.";
+
 "pl_menu.title_multi" = "%d Items";
 "pl_menu.play_next" = "Play Next";
 "pl_menu.play_in_new_window" = "Play in New Window";
@@ -186,7 +216,8 @@
 "pl_menu.delete_after_play" = "Move to Trash After Playback";
 "pl_menu.delete_after_play_multi" = "Move Selected Files to Trash After Playback";
 "pl_menu.reveal_in_finder" = "Reveal in Finder";
-"pl_menu.add_item" = "Add Item…";
+"pl_menu.add_file" = "Add File…";
+"pl_menu.add_url" = "Add URL…";
 "pl_menu.clear_playlist" = "Clear Playlist";
 "pl_menu.matched_sub" = "Matched %d Subtitle(s)";
 "pl_menu.add_sub" = "Add Subtitle…";
@@ -204,6 +235,13 @@
 
 "subencoding.auto" = "Auto detect";
 
+"osc_toolbar.settings" = "Quick Settings";
+"osc_toolbar.playlist" = "Playlist and chapters";
+"osc_toolbar.pip" = "Toggle Picture-in-Picture";
+"osc_toolbar.full_screen" = "Toggle full screen";
+"osc_toolbar.music_mode" = "Enter music mode";
+"osc_toolbar.sub_track" = "Choose subtitle track";
+
 // Touch bar
 
 "touchbar.ahead_15" = "15sec Ahead";
@@ -219,3 +257,4 @@
 "touchbar.play_pause" = "Play / Pause";
 "touchbar.seek" = "Seek";
 "touchbar.time" = "Time Position";
+"touchbar.remainingTime" = "Remaining Time";
